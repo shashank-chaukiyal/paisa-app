@@ -31,31 +31,25 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      # Fix: Initialize a real RN project scaffold — then overlay our source
       - name: Initialize React Native project
         run: |
-          npx @react-native-community/cli@latest init PaisaApp --version 0.76.5 --skip-install
+          npx @react-native-community/cli@15.0.1 init PaisaApp --version 0.76.5 --skip-install
           echo "✅ RN scaffold created"
 
-      # Fix: Copy ALL mobile source files (App.tsx, index.js, src/, babel.config.js)
-      # Previously this silently failed because PaisaApp/src/ didn't exist yet
       - name: Copy source files into scaffold
         run: |
-          # App entry points
-          cp Paisa_app/paisa/mobile/App.tsx       PaisaApp/App.tsx
-          cp Paisa_app/paisa/mobile/index.js       PaisaApp/index.js
+          cp Paisa_app/paisa/mobile/App.tsx        PaisaApp/App.tsx
+          cp Paisa_app/paisa/mobile/index.js        PaisaApp/index.js
           cp Paisa_app/paisa/mobile/babel.config.js PaisaApp/babel.config.js
           cp Paisa_app/paisa/mobile/package.json    PaisaApp/package.json
 
-          # Fix: mkdir -p ensures the target exists before copying
           mkdir -p PaisaApp/src
           cp -r Paisa_app/paisa/mobile/src/* PaisaApp/src/
 
-          # Verify critical files are in place — fail loudly if missing
-          test -f PaisaApp/index.js      || (echo "❌ index.js missing!" && exit 1)
-          test -f PaisaApp/App.tsx       || (echo "❌ App.tsx missing!" && exit 1)
-          test -d PaisaApp/src/screens   || (echo "❌ src/screens missing!" && exit 1)
-          test -d PaisaApp/src/stores    || (echo "❌ src/stores missing!" && exit 1)
+          test -f PaisaApp/index.js    || (echo "❌ index.js missing!" && exit 1)
+          test -f PaisaApp/App.tsx     || (echo "❌ App.tsx missing!" && exit 1)
+          test -d PaisaApp/src/screens || (echo "❌ src/screens missing!" && exit 1)
+          test -d PaisaApp/src/stores  || (echo "❌ src/stores missing!" && exit 1)
           echo "✅ All source files copied"
 
       - name: Debug — show project structure
@@ -68,8 +62,6 @@ jobs:
       - name: Install JS dependencies
         run: |
           cd PaisaApp
-          # --legacy-peer-deps resolves transitive peer conflicts between
-          # @testing-library/react-native and react-test-renderer version ranges
           npm install --legacy-peer-deps
           echo "✅ Dependencies installed"
 
@@ -77,7 +69,8 @@ jobs:
         run: |
           cd PaisaApp
           mkdir -p android/app/src/main/assets
-          npx react-native bundle \
+          # Use local installed CLI binary — avoids npx version mismatch warning
+          ./node_modules/.bin/react-native bundle \
             --platform android \
             --dev false \
             --entry-file index.js \
@@ -105,7 +98,7 @@ jobs:
       - name: Verify APK exists
         run: |
           APK=PaisaApp/android/app/build/outputs/apk/debug/app-debug.apk
-          test -f "$APK" || (echo "❌ APK not found at expected path!" && exit 1)
+          test -f "$APK" || (echo "❌ APK not found!" && exit 1)
           echo "✅ APK size: $(du -sh $APK | cut -f1)"
 
       - name: Upload APK artifact
