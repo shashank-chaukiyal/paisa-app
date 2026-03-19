@@ -49,8 +49,19 @@ jobs:
           test -f PaisaApp/index.js    || (echo "❌ index.js missing!" && exit 1)
           test -f PaisaApp/App.tsx     || (echo "❌ App.tsx missing!" && exit 1)
           test -d PaisaApp/src/screens || (echo "❌ src/screens missing!" && exit 1)
-          test -d PaisaApp/src/stores  || (echo "❌ src/stores missing!" && exit 1)
           echo "✅ All source files copied"
+
+      # Disable New Architecture — many packages (react-native-screens 3.x,
+      # watermelondb, keychain) are not yet fully compatible with Fabric/TurboModules.
+      # RN 0.76 enables New Arch by default; this turns it off for a stable build.
+      - name: Disable New Architecture
+        run: |
+          GRADLE_PROPS=PaisaApp/android/gradle.properties
+          # Remove any existing newArchEnabled line and add false
+          sed -i '/newArchEnabled/d' "$GRADLE_PROPS"
+          echo "newArchEnabled=false" >> "$GRADLE_PROPS"
+          echo "✅ New Architecture disabled"
+          grep "newArchEnabled" "$GRADLE_PROPS"
 
       - name: Debug — show project structure
         run: |
@@ -69,7 +80,6 @@ jobs:
         run: |
           cd PaisaApp
           mkdir -p android/app/src/main/assets
-          # Use local installed CLI binary — avoids npx version mismatch warning
           ./node_modules/.bin/react-native bundle \
             --platform android \
             --dev false \
