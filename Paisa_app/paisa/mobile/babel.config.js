@@ -1,14 +1,11 @@
 /**
  * mobile/babel.config.js
  *
- * Fix: react-native-reanimated v3 requires its Babel plugin to be the LAST
- * plugin listed. Without this, worklets fail at runtime with
- * "ReanimatedError: Reanimated 2 failed to create a worklet".
+ * Note: react-native-reanimated plugin removed.
+ * Reanimated 3.10.x uses removed Java APIs in RN 0.76,
+ * and 3.16.x requires RN 0.78+. Since no screens import
+ * reanimated hooks, it has been removed entirely.
  */
 module.exports = {
   presets: ['module:@react-native/babel-preset'],
-  plugins: [
-    // react-native-reanimated/plugin MUST be listed last
-    'react-native-reanimated/plugin',
-  ],
 };
