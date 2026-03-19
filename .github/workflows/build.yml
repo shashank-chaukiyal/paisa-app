@@ -1,0 +1,114 @@
+name: Build Paisa APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: Paisa_app/paisa/mobile/package.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      # Fix: Initialize a real RN project scaffold — then overlay our source
+      - name: Initialize React Native project
+        run: |
+          npx @react-native-community/cli@latest init PaisaApp --version 0.76.5 --skip-install
+          echo "✅ RN scaffold created"
+
+      # Fix: Copy ALL mobile source files (App.tsx, index.js, src/, babel.config.js)
+      # Previously this silently failed because PaisaApp/src/ didn't exist yet
+      - name: Copy source files into scaffold
+        run: |
+          # App entry points
+          cp Paisa_app/paisa/mobile/App.tsx       PaisaApp/App.tsx
+          cp Paisa_app/paisa/mobile/index.js       PaisaApp/index.js
+          cp Paisa_app/paisa/mobile/babel.config.js PaisaApp/babel.config.js
+          cp Paisa_app/paisa/mobile/package.json    PaisaApp/package.json
+
+          # Fix: mkdir -p ensures the target exists before copying
+          mkdir -p PaisaApp/src
+          cp -r Paisa_app/paisa/mobile/src/* PaisaApp/src/
+
+          # Verify critical files are in place — fail loudly if missing
+          test -f PaisaApp/index.js      || (echo "❌ index.js missing!" && exit 1)
+          test -f PaisaApp/App.tsx       || (echo "❌ App.tsx missing!" && exit 1)
+          test -d PaisaApp/src/screens   || (echo "❌ src/screens missing!" && exit 1)
+          test -d PaisaApp/src/stores    || (echo "❌ src/stores missing!" && exit 1)
+          echo "✅ All source files copied"
+
+      - name: Debug — show project structure
+        run: |
+          echo "=== PaisaApp root ==="
+          ls -la PaisaApp/
+          echo "=== PaisaApp/src ==="
+          find PaisaApp/src -type f | head -30
+
+      - name: Install JS dependencies
+        run: |
+          cd PaisaApp
+          npm install
+          echo "✅ Dependencies installed"
+
+      - name: Bundle JavaScript
+        run: |
+          cd PaisaApp
+          mkdir -p android/app/src/main/assets
+          npx react-native bundle \
+            --platform android \
+            --dev false \
+            --entry-file index.js \
+            --bundle-output android/app/src/main/assets/index.android.bundle \
+            --assets-dest android/app/src/main/res
+          echo "✅ JS bundle created"
+
+      - name: Copy Android native SMS module
+        run: |
+          DEST=PaisaApp/android/app/src/main/java/com/paisa/sms
+          mkdir -p "$DEST"
+          cp Paisa_app/paisa/mobile/android/app/src/main/java/com/paisa/sms/SmsModule.kt   "$DEST/"
+          cp Paisa_app/paisa/mobile/android/app/src/main/java/com/paisa/sms/SmsReceiver.kt "$DEST/"
+          echo "✅ Native SMS modules copied"
+
+      - name: Make Gradle executable
+        run: chmod +x PaisaApp/android/gradlew
+
+      - name: Build APK
+        run: |
+          cd PaisaApp/android
+          ./gradlew assembleDebug --no-daemon
+          echo "✅ APK built"
+
+      - name: Verify APK exists
+        run: |
+          APK=PaisaApp/android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK" || (echo "❌ APK not found at expected path!" && exit 1)
+          echo "✅ APK size: $(du -sh $APK | cut -f1)"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Paisa-Debug-APK
+          path: PaisaApp/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
