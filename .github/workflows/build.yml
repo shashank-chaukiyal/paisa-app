@@ -68,7 +68,9 @@ jobs:
       - name: Install JS dependencies
         run: |
           cd PaisaApp
-          npm install
+          # --legacy-peer-deps resolves transitive peer conflicts between
+          # @testing-library/react-native and react-test-renderer version ranges
+          npm install --legacy-peer-deps
           echo "✅ Dependencies installed"
 
       - name: Bundle JavaScript
